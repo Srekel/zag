@@ -1,2 +1,4 @@
-# zag
-Game engine written in Zig and C
+# Zag
+Game... engine...project...?
+
+Written in Zig and C.

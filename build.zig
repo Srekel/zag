@@ -5,10 +5,10 @@ pub fn build(b: *Builder) void {
     const exe = b.addExecutable("main", "code/main/main.zig");
     exe.setBuildMode(mode);
 
-        exe.addIncludeDir("./external");
+    exe.addIncludeDir("./external");
     // exe.addIncludeDir("external/sralloc");
     // exe.addCSourceFile("external/sralloc/sralloc.c", [_][]const u8{"-std=c99", "-Iexternal/sralloc/"});
-    exe.addCSourceFile("external/sokol/sokol.c", [_][]const u8{"-std=c99", "-Iexternal/sokol/"});
+    exe.addCSourceFile("external/zig_wraps/sokol.c", [_][]const u8{ "-std=c99", "-Iexternal/sokol/" });
     exe.linkSystemLibrary("c");
     exe.linkSystemLibrary("winmm");
     exe.linkSystemLibrary("opengl32");
