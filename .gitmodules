@@ -1,0 +1,4 @@
+[submodule "external/sokol"]
+	path = external/sokol
+	url = https://github.com/floooh/sokol.git
+	branch = master
