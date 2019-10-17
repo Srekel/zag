@@ -2,3 +2,6 @@
 	path = external/sokol
 	url = https://github.com/floooh/sokol.git
 	branch = master
+[submodule "external/cimgui"]
+	path = external/cimgui
+	url = https://github.com/cimgui/cimgui.git
