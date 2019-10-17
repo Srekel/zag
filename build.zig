@@ -8,10 +8,10 @@ pub fn build(b: *Builder) void {
     exe.addIncludeDir("./external");
     // exe.addIncludeDir("external/sralloc");
     // exe.addCSourceFile("external/sralloc/sralloc.c", [_][]const u8{"-std=c99", "-Iexternal/sralloc/"});
-    exe.addCSourceFile("external/zig_wraps/sokol.c", [_][]const u8{ "-std=c99", "-Iexternal/sokol/" });
+    exe.addCSourceFile("external/zig_wraps/sokol.c", [_][]const u8{ "-std=c99" });
     exe.linkSystemLibrary("c");
-    exe.linkSystemLibrary("winmm");
-    exe.linkSystemLibrary("opengl32");
+    // exe.linkSystemLibrary("winmm");
+    // exe.linkSystemLibrary("opengl32");
     exe.linkSystemLibrary("gdi32");
     exe.linkSystemLibrary("user32");
 
