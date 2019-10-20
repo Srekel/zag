@@ -9,9 +9,11 @@ pub fn build(b: *std.build.Builder) void {
     exe.setBuildMode(mode);
 
     exe.addIncludeDir("./external");
+    exe.addIncludeDir("./code");
     // exe.addCSourceFile("external/sralloc/sralloc.c", [_][]const u8{"-std=c99", "-Iexternal/sralloc/"});
     exe.addCSourceFile("external/zig_wraps/sokol.c", [_][]const u8{"-std=c99"});
     exe.linkSystemLibrary("c");
+    exe.setMainPkgPath("./code");
 
     if (is_windows) {
         exe.addObjectFile("build/cimgui.obj");

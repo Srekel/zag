@@ -12,19 +12,24 @@ pub const sokol = @cImport({
     @cInclude("sokol/util/sokol_imgui.h");
 });
 
-pub fn app_state() type {
-    return struct {
-        x: f32 = 0,
-        y: f32 = 0,
-        pass_action: sokol.sg_pass_action = undefined,
-    };
-}
+const SokolState = struct {
+    pass_action: sokol.sg_pass_action = undefined,
+};
 
+pub const AppInitFunc = fn (user_data: *c_void) void;
+pub const AppUpdateFunc = fn (dt: f64, total_time: f64, user_data: *c_void) bool;
+
+pub const AppState = struct {
+    init_func: AppInitFunc,
+    cleanup_func: AppInitFunc,
+    update_func: AppUpdateFunc,
+    user_data: *c_void,
+};
+
+var sokol_state: SokolState = undefined;
 var last_time: u64 = 0;
 
 pub export fn init(user_data: ?*c_void) void {
-    var state = @ptrCast([*]app_state(), @alignCast(@alignOf([*]app_state()), user_data));
-
     var desc = zero_struct(sokol.sg_desc);
     sokol.sg_setup(&desc);
     sokol.stm_setup();
@@ -32,8 +37,11 @@ pub export fn init(user_data: ?*c_void) void {
     var imgui_desc = zero_struct(sokol.simgui_desc_t);
     sokol.simgui_setup(&imgui_desc);
 
-    state.*.pass_action.colors[0].action = sokol.SG_ACTION_CLEAR;
-    state.*.pass_action.colors[0].val = [_]f32{ 0.1, 0.3, 0.1, 1.0 };
+    sokol_state.pass_action.colors[0].action = sokol.SG_ACTION_CLEAR;
+    sokol_state.pass_action.colors[0].val = [_]f32{ 0.1, 0.3, 0.1, 1.0 };
+
+    var state = @ptrCast([*]AppState, @alignCast(@alignOf([*]AppState), user_data));
+    state.*.init_func(state.*.user_data);
 }
 
 pub export fn cleanup(user_data: ?*c_void) void {
@@ -42,16 +50,23 @@ pub export fn cleanup(user_data: ?*c_void) void {
 }
 
 pub export fn update(user_data: ?*c_void) void {
-    var state = @ptrCast([*]app_state(), @alignCast(@alignOf([*]app_state()), user_data));
+    var state = @ptrCast([*]AppState, @alignCast(@alignOf([*]AppState), user_data));
     const width = sokol.sapp_width();
     const height = sokol.sapp_height();
     const dt = sokol.stm_sec(sokol.stm_laptime(&last_time));
+
+    var quit = state.*.update_func(dt, 0, state.*.user_data);
+
     sokol.simgui_new_frame(width, height, dt);
     sokol.igText(c"Zag!");
-    sokol.sg_begin_default_pass(&state.*.pass_action, width, height);
+    sokol.sg_begin_default_pass(&sokol_state.pass_action, width, height);
     sokol.simgui_render();
     sokol.sg_end_pass();
     sokol.sg_commit();
+
+    if (quit) {
+        sokol.sapp_quit();
+    }
 }
 
 pub export fn event(ev: [*c]const sokol.sapp_event) void {

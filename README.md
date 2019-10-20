@@ -30,4 +30,4 @@ Otherwise, find the executable and run it.
 
 ## License
 
-Pick your license: Public Domain, WTFPL, MIT.
+Unless noted otherwise (e.g. in a comment or in a LICENSE file), pick your license: Public Domain or MIT.
