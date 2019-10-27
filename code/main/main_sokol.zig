@@ -44,7 +44,7 @@ pub export fn init(user_data: ?*c_void) void {
     state.*.init_func(state.*.user_data);
 }
 
-pub export fn cleanup(user_data: ?*c_void) void {
+pub export fn deinit(user_data: ?*c_void) void {
     sokol.simgui_shutdown();
     sokol.sg_shutdown();
 }
