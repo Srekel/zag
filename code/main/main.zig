@@ -47,7 +47,6 @@ pub fn main() void {
     defer arena.deinit();
 
     var sm = system.SystemManager.init(&arena.allocator);
-    // var sm = system.SystemManager.init(std.heap.c_allocator);
     defer sm.deinit();
 
     var mainstate = MainState{
@@ -56,11 +55,12 @@ pub fn main() void {
         .allocator = &arena.allocator,
     };
 
-    var state = zero_struct(main_sokol.AppState);
-    state.init_func = init_safe;
-    state.cleanup_func = deinit;
-    state.update_func = update;
-    state.user_data = &mainstate;
+    var state = main_sokol.AppState{
+        .init_func = init_safe,
+        .cleanup_func = deinit,
+        .update_func = update,
+        .user_data = &mainstate,
+    };
 
     // TODO: Change to main_sokol.run(...)
     var desc = zero_struct(main_sokol.sokol.sapp_desc);

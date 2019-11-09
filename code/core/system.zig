@@ -1,25 +1,25 @@
 const std = @import("std");
 const assert = std.debug.assert;
 const warn = std.debug.warn;
-const zero_struct = @import("util.zig").zero_struct;
 const Allocator = std.mem.Allocator;
 
-pub const SystemParam = struct {
-    lol: i32 = 0,
-    // value: union {
-    //     // buf_u8: *[]u8 = ,
-    //     ptr_i32: i32,
-    // },
+pub const SystemVariantParam = union(enum) {
+    vint: i64,
+    vbool: bool,
+    pvoid: *void,
+    psystem: *const System,
 };
 
-pub const systemFunc = fn (params: []const SystemParam) void;
+pub const SystemParamLookup = std.StringHashMap(SystemVariantParam);
+
+pub const systemFunc = fn (params: SystemParamLookup) void;
 
 pub const SystemFuncDef = struct {
     pass: []const u8,
     phase: u8 = 0,
     run_before: [][]const u8 = [_][]const u8{},
     run_after: [][]const u8 = [_][]const u8{},
-    // params: stretchy_buffer.stretchy_buffer(SystemParam),
+    params: [][]const u8 = [_][]const u8{},
     func: systemFunc,
 };
 
@@ -38,23 +38,6 @@ pub const System = struct {
         return system;
     }
 };
-
-// pub const System = struct {
-//     name: []u8,
-//     funcs: stretchy_buffer.stretchy_buffer(SystemFuncDef),
-
-//     pub fn init(name: []u8, allocator: *Allocator) System {
-//         var system = System{
-//             .name = name,
-//             .funcs = stretchy_buffer.stretchy_buffer(SystemFuncDef).init(allocator),
-//         };
-//         return system;
-//     }
-// };
-
-fn systemSorter(s1: System, s2: System) bool {
-    return s1.name[0] < s2.name[0];
-}
 
 pub const SystemManager = struct {
     systems: std.ArrayList(System),
@@ -76,13 +59,24 @@ pub const SystemManager = struct {
     }
 
     pub fn runSystemFunc(self: *SystemManager, pass: []const u8) void {
+        var params = SystemParamLookup.init(self.allocator);
+        params.putNoClobber("allocator", SystemVariantParam{ .pvoid = @ptrCast(*void, self.allocator) }) catch unreachable;
+        for (self.systems.toSlice()) |system| {
+            params.putNoClobber(system.name, SystemVariantParam{ .psystem = &system }) catch unreachable;
+        }
+
         for (self.systems.toSlice()) |system| {
             for (system.funcs) |func| {
                 if (std.mem.eql(u8, func.pass, pass)) {
-                    var params: [0]SystemParam = undefined;
+                    var lol = SystemVariantParam{ .vint = 12 };
+                    params.putNoClobber("lol", lol) catch unreachable;
                     func.func(params);
                 }
             }
         }
+    }
+
+    fn systemSorter(s1: System, s2: System) bool {
+        return s1.name[0] < s2.name[0];
     }
 };
