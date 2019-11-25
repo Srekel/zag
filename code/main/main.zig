@@ -4,6 +4,7 @@ const warn = std.debug.warn;
 const zero_struct = @import("util.zig").zero_struct;
 const main_sokol = @import("main_sokol.zig");
 const system = @import("../core/system.zig");
+const util = @import("../main/util.zig");
 
 const MainState = struct {
     sm: *system.SystemManager,

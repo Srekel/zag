@@ -2,17 +2,9 @@ const std = @import("std");
 const assert = std.debug.assert;
 const warn = std.debug.warn;
 const Allocator = std.mem.Allocator;
+usingnamespace @import("../main/util.zig");
 
-pub const SystemVariantParam = union(enum) {
-    vint: i64,
-    vbool: bool,
-    pvoid: *void,
-    psystem: *const System,
-};
-
-pub const SystemParamLookup = std.StringHashMap(SystemVariantParam);
-
-pub const systemFunc = fn (params: SystemParamLookup) void;
+pub const systemFunc = fn (self: *SystemSelf, params: VariantMap) void;
 
 pub const SystemFuncDef = struct {
     pass: []const u8,
@@ -23,21 +15,31 @@ pub const SystemFuncDef = struct {
     func: systemFunc,
 };
 
+pub const SystemSelf = @OpaqueType();
 pub const System = struct {
     name: []const u8,
     funcs: []const SystemFuncDef,
+    self: *SystemSelf,
 
-    pub fn init(name: []const u8, funcs: []const SystemFuncDef, allocator: *Allocator) System {
+    pub fn init(name: []const u8, funcs: []const SystemFuncDef, self: var) System {
         var system = System{
             .name = name,
             .funcs = funcs,
+            .self = self,
         };
-
-        // system.name = try allocator.alloc(u8, name.len);
-        // std.mem.copy(u8, system.name[0..], name[0..]);
         return system;
     }
 };
+
+pub fn systemFunctionWrap(comptime SystemT: type, comptime sysFunc: var, comptime ContextT: type) fn (self: *SystemSelf, params: VariantMap) void {
+    return struct {
+        fn func(self: *SystemSelf, params: VariantMap) void {
+            var sys = @ptrCast(*SystemT, @alignCast(@alignOf(*SystemT), self));
+            var context = fillContext(params, ContextT);
+            sysFunc(sys, context);
+        }
+    }.func;
+}
 
 pub const SystemManager = struct {
     systems: std.ArrayList(System),
@@ -59,18 +61,17 @@ pub const SystemManager = struct {
     }
 
     pub fn runSystemFunc(self: *SystemManager, pass: []const u8) void {
-        var params = SystemParamLookup.init(self.allocator);
-        params.putNoClobber("allocator", SystemVariantParam{ .pvoid = @ptrCast(*void, self.allocator) }) catch unreachable;
+        var params = VariantMap.init(self.allocator);
+        params.putNoClobber("allocator", Variant.create_ptr(self.allocator, stringTag("allocator"))) catch unreachable;
+        params.putNoClobber("max_entity_count", Variant.create_int(128)) catch unreachable;
         for (self.systems.toSlice()) |system| {
-            params.putNoClobber(system.name, SystemVariantParam{ .psystem = &system }) catch unreachable;
+            // params.putNoClobber(system.name, Variant{ .psystem = &system }) catch unreachable;
         }
 
         for (self.systems.toSlice()) |system| {
             for (system.funcs) |func| {
                 if (std.mem.eql(u8, func.pass, pass)) {
-                    var lol = SystemVariantParam{ .vint = 12 };
-                    params.putNoClobber("lol", lol) catch unreachable;
-                    func.func(params);
+                    func.func(system.self, params);
                 }
             }
         }

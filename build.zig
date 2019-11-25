@@ -14,6 +14,7 @@ pub fn build(b: *std.build.Builder) void {
     exe.addCSourceFile("external/zig_wraps/sokol.c", [_][]const u8{"-std=c99"});
     exe.linkSystemLibrary("c");
     exe.setMainPkgPath("./code");
+    exe.addPackagePath("math3d", "external/zig-gamedev-lib/src/math3d.zig");
 
     if (is_windows) {
         exe.addObjectFile("build/cimgui.obj");
