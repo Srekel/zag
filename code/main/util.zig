@@ -10,8 +10,10 @@ pub fn zero_struct(comptime T: type) T {
     return out;
 }
 
+pub const Entity = u16;
 pub const Hash = u64;
 pub const Tag = u32;
+pub const TagUnset: Tag = 0;
 
 pub fn stringHash(s: []const u8) Hash {
     return std.hash.Wyhash.hash(0, s);
@@ -32,8 +34,9 @@ pub const VariantType = union(enum) {
 pub const Variant = struct {
     value: VariantType = undefined,
     tag: Tag = 0,
+    count: u32 = 1,
 
-    pub fn create_ptr(ptr: var, tag: Tag) Variant {
+    pub fn set_ptr(ptr: var, tag: Tag) Variant {
         assert(tag != 0);
         return Variant{
             .value = .{ .ptr = @ptrToInt(ptr) },
@@ -41,7 +44,16 @@ pub const Variant = struct {
         };
     }
 
-    pub fn create_int(int: var) Variant {
+    pub fn set_slice(slice: var, tag: Tag) Variant {
+        assert(tag != 0);
+        return Variant{
+            .value = .{ .ptr = @ptrToInt(slice.ptr) },
+            .tag = tag,
+            .count = slice.len,
+        };
+    }
+
+    pub fn set_int(int: var) Variant {
         var v = VariantType{ .int64 = @intCast(i64, int) };
         return Variant{
             .value = .{ .int64 = @intCast(i64, int) },
@@ -52,6 +64,13 @@ pub const Variant = struct {
         assert(tag == self.tag);
         return @intToPtr(*T, self.value.ptr);
     }
+
+    pub fn get_slice(self: Variant, comptime T: type, tag: Hash) []T {
+        assert(tag == self.tag);
+        var ptr = @intToPtr([*]T, self.value.ptr);
+        return ptr[0..self.count];
+    }
+
     pub fn get_int(self: Variant) i64 {
         return self.value.int64;
     }

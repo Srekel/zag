@@ -1,0 +1,8 @@
+{
+    "files.associations": {
+        "*.shader": "cpp",
+        "cimgui.h": "c",
+        "sokol_gfx.h": "c",
+        "sokol_time.h": "c"
+    }
+}
