@@ -1,10 +1,9 @@
 const std = @import("std");
 // const assert = std.debug.assert;
 const warn = std.debug.warn;
-const zero_struct = @import("util.zig").zero_struct;
 const main_sokol = @import("main_sokol.zig");
 const system = @import("../core/system.zig");
-const util = @import("../main/util.zig");
+usingnamespace @import("../main/util.zig");
 
 const MainState = struct {
     sm: *system.SystemManager,
@@ -31,7 +30,11 @@ fn init(user_data: *c_void) !void {
     try systems.append(ts);
     warn("2 {}\n", ts.funcs[0].pass);
     sm.registerAllSystems(systems.toSlice());
-    sm.runSystemFunc("init");
+
+    var params = VariantMap.init(sm.allocator);
+    params.putNoClobber("allocator", Variant.set_ptr(sm.allocator, stringTag("allocator"))) catch unreachable;
+    params.putNoClobber("max_entity_count", Variant.set_int(128)) catch unreachable;
+    sm.runSystemFunc("init", params);
 }
 
 fn deinit(user_data: *c_void) void {}

@@ -60,10 +60,7 @@ pub const SystemManager = struct {
         std.sort.sort(System, self.systems.toSlice(), systemSorter);
     }
 
-    pub fn runSystemFunc(self: *SystemManager, pass: []const u8) void {
-        var params = VariantMap.init(self.allocator);
-        params.putNoClobber("allocator", Variant.create_ptr(self.allocator, stringTag("allocator"))) catch unreachable;
-        params.putNoClobber("max_entity_count", Variant.create_int(128)) catch unreachable;
+    pub fn runSystemFunc(self: *SystemManager, pass: []const u8, params: VariantMap) void {
         for (self.systems.toSlice()) |system| {
             // params.putNoClobber(system.name, Variant{ .psystem = &system }) catch unreachable;
         }

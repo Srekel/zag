@@ -12,6 +12,11 @@ const Context = struct {
     allocator: *Allocator,
 };
 
+const EntityCreateContext = struct {
+    transform_components: []math3d.Mat4,
+    transform_entities: []Entity,
+};
+
 pub const TransformComponentInitData = struct {
     pos: math3d.Vec3,
     rot: math3d.Quaternion,
@@ -33,13 +38,13 @@ pub const TransformSystem = struct {
 
     fn update(self: *TransformSystem, context: Context) void {}
 
-    fn entityCreate(self: *TransformSystem, context: Context, ents: []Entity, data: []const math3d.Mat4) void {
-        for (ents) |ent, index| {
-            self.transforms[ent] = data[index];
+    fn entityCreate(self: *TransformSystem, context: Context) void {
+        for (context.transform_entities) |ent, index| {
+            self.transforms[ent] = context.transform_components[index];
         }
     }
 
-    fn entityDestroy(self: *TransformSystem, context: Context, ents: []Entity) void {
+    fn entityDestroy(self: *TransformSystem, context: EntityCreateContext, ents: []Entity) void {
         if (std.builtin.mode == .Debug) {
             for (ents) |ent| {
                 self.transforms[ent] = math3d.Mat4.zero;
@@ -68,7 +73,7 @@ const funcs = [_]system.SystemFuncDef{
     system.SystemFuncDef{
         .pass = "entity_create",
         .phase = 0,
-        .func = entity.entityCreateWrapper(TransformSystem, TransformSystem.entityCreate, Context, math3d.Mat4),
+        .func = funcWrap(TransformSystem, TransformSystem.entityCreate, EntityCreateContext),
     },
 };
 

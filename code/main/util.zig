@@ -10,6 +10,7 @@ pub fn zero_struct(comptime T: type) T {
     return out;
 }
 
+pub const String = []u8;
 pub const Entity = u16;
 pub const Hash = u64;
 pub const Tag = u32;
@@ -110,4 +111,47 @@ pub fn fillContext(params: VariantMap, comptime ContextT: type) ContextT {
     }
 
     return context;
+}
+
+pub fn DoubleBuffer(comptime T: type) type {
+    return struct {
+        const Self = @This();
+
+        allocator: *Allocator,
+        current_buffer: u8 = 0,
+        buffers: [2]ArrayList(T),
+
+        pub fn init(allocator: *Allocator, capacity: usize) !Self {
+            var res = try Self{
+                .buffers = .{
+                    ArrayList.init(allocator),
+                    ArrayList.init(allocator),
+                },
+            };
+            res.buffers[0].ensureCapacity(capacity);
+            res.buffers[1].ensureCapacity(capacity);
+            return res;
+        }
+
+        pub fn deinit(self: DoubleBuffer) void {
+            self.buffers[0].deinit();
+            self.buffers[1].deinit();
+        }
+
+        pub fn currSlice(self: DoubleBuffer) []T {
+            return self.buffers[self.current_buffer];
+        }
+
+        pub fn currBuffer(self: DoubleBuffer) *ArrayList(T) {
+            return self.buffers[self.current_buffer];
+        }
+
+        pub fn nextBuffer(self: DoubleBuffer) *ArrayList(T) {
+            return self.buffers[1 - self.current_buffer];
+        }
+
+        pub fn swap(self: *DoubleBuffer) []T {
+            return self.current_buffer = 1 - self.current_buffer;
+        }
+    };
 }
