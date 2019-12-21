@@ -20,9 +20,20 @@ pub fn stringHash(s: []const u8) Hash {
     return std.hash.Wyhash.hash(0, s);
 }
 
-pub fn stringTag(s: []const u8) Tag {
+pub fn stringTag(comptime s: []const u8) Tag {
     return @truncate(u32, std.hash.Wyhash.hash(0, s));
 }
+
+pub const FullTag = struct {
+    tag: Tag,
+    string: String,
+    pub fn init(string: String) FullTag {
+        return .{
+            .tag = stringTag(string),
+            .string = string,
+        };
+    }
+};
 
 pub const VariantType = union(enum) {
     int64: i64,
@@ -37,7 +48,7 @@ pub const Variant = struct {
     tag: Tag = 0,
     count: u32 = 1,
 
-    pub fn set_ptr(ptr: var, tag: Tag) Variant {
+    pub fn create_ptr(ptr: var, tag: Tag) Variant {
         assert(tag != 0);
         return Variant{
             .value = .{ .ptr = @ptrToInt(ptr) },
@@ -45,13 +56,33 @@ pub const Variant = struct {
         };
     }
 
-    pub fn set_slice(slice: var, tag: Tag) Variant {
+    pub fn create_slice(slice: var, tag: Tag) Variant {
         assert(tag != 0);
         return Variant{
             .value = .{ .ptr = @ptrToInt(slice.ptr) },
             .tag = tag,
             .count = slice.len,
         };
+    }
+
+    pub fn create_int(int: var) Variant {
+        self.tag = 0; // TODO
+        return Variant{
+            .value = .{ .int64 = @intCast(i64, int) },
+        };
+    }
+
+    pub fn set_ptr(self: *Variant, ptr: var, tag: Tag) void {
+        assert(tag != 0);
+        self.value = .{ .ptr = @ptrToInt(ptr) };
+        self.tag = tag;
+    }
+
+    pub fn set_slice(slice: var, tag: Tag) Variant {
+        assert(tag != 0);
+        self.value = .{ .ptr = @ptrToInt(slice.ptr) };
+        self.tag = tag;
+        self.count = slice.len;
     }
 
     pub fn set_int(int: var) Variant {
@@ -113,19 +144,19 @@ pub fn fillContext(params: VariantMap, comptime ContextT: type) ContextT {
     return context;
 }
 
-pub fn DoubleBuffer(comptime T: type) type {
+pub fn DoubleBuffer(comptime BufferedType: type) type {
     return struct {
         const Self = @This();
 
         allocator: *Allocator,
         current_buffer: u8 = 0,
-        buffers: [2]ArrayList(T),
+        buffers: [2]BufferedType,
 
         pub fn init(allocator: *Allocator, capacity: usize) !Self {
             var res = try Self{
                 .buffers = .{
-                    ArrayList.init(allocator),
-                    ArrayList.init(allocator),
+                    BufferedType.init(allocator),
+                    BufferedType.init(allocator),
                 },
             };
             res.buffers[0].ensureCapacity(capacity);
@@ -138,19 +169,20 @@ pub fn DoubleBuffer(comptime T: type) type {
             self.buffers[1].deinit();
         }
 
-        pub fn currSlice(self: DoubleBuffer) []T {
+        pub fn frontHasData(self: DoubleBuffer) []T {
+            return self.buffers[self.current_buffer].count() > 0;
+        }
+
+        pub fn front(self: DoubleBuffer) *ArrayList(T) {
             return self.buffers[self.current_buffer];
         }
 
-        pub fn currBuffer(self: DoubleBuffer) *ArrayList(T) {
-            return self.buffers[self.current_buffer];
-        }
-
-        pub fn nextBuffer(self: DoubleBuffer) *ArrayList(T) {
+        pub fn back(self: DoubleBuffer) *ArrayList(T) {
             return self.buffers[1 - self.current_buffer];
         }
 
         pub fn swap(self: *DoubleBuffer) []T {
+            self.currBuffer().resize(0);
             return self.current_buffer = 1 - self.current_buffer;
         }
     };

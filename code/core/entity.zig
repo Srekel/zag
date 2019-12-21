@@ -44,7 +44,39 @@ const EntityCreateData = struct {
 };
 
 const EntityDestroyData = struct {
+    tag: Tag,
+    entities: ArrayList(Entity),
+    pub fn init(allocator: *Allocator, tag: Tag, once: bool) EntityDestroyData {
+        return .{
+            .tag = tag,
+            .entities = ArrayList(Entity).init(allocator),
+            .allocator = allocator,
+        };
+    }
+    pub fn deinit(self: *EntityDestroyData) void {
+        self.entities.free();
+    }
+};
+
+const EntityDestroyData = struct {
     entities: std.ArrayList(Entity),
+};
+
+const ComponentCreateData = struct {
+    entities: std.ArrayList(Entity),
+    component_data: std.ArrayList(u8),
+    components:Variant,
+    tag: FullTag,
+    pub fn init(tag_string:String, allocator:*Allocator) ComponentCreateData{
+        var component_data = ArrayList(u8).init(Allocator);
+        var tag = FullTag.init(tag_string);
+        return .{
+            .entities = ArrayList(Entity).init(allocator),
+            .component_data = component_data,
+            .component = Variant.create_slice(component_data.toSlice(), tag.tag),
+            .tag = tag,
+        };
+    }
 };
 
 const EntityManager = struct {
@@ -53,36 +85,35 @@ const EntityManager = struct {
     create_data: [2]EntityCreateData,
     destroy_data: [2]EntityDestroyData,
     entities_to_create: []std.ArrayList(Entity),
-    comps_to_create: std.ArrayList(Variant),
+    entities_to_destroy: []std.ArrayList(Entity),
+    comps_to_create: std.ArrayList(ComponentCreateData),
     entity_create_callbacks: std.ArrayList(EntityCreateCallback),
     allocator: *Allocator,
     max_passes = 0,
     passes: []std.ArrayList(entityCreateBakeFunc),
+    entity_create_buffers: DoubleBuffer(ArrayList(EntityCreateData)),
+    entity_destroy_buffers: DoubleBuffer(EntityDestroyData),
 
     pub fn init(allocator: *Allocator) !EntityManager {
         return try EntityManager{
             .allocator = allocator,
-            .component_buffers = DoubleBuffer(Variant).init(allocator),
+            .entity_create_buffers = DoubleBuffer(Variant).init(allocator),
+            .entity_destroy_buffers = DoubleBuffer(EntityDestroyData).init(allocator),
         };
     }
 
     pub fn deinit(self: EntityManager) void {
-        self.component_buffers.deinit();
+        self.entity_create_buffers.deinit();
     }
 
     pub fn registerComponent(self: *EntityManager, comptime CompT: type, tag_string: String) void {
-        for (self.component_buffers.buffers) |buf| {
-            var comps = self.allocator.alloc(CompT, max_entity_count);
-            var comp_variant: Variant = Variant.set_slice(comps, CompT, stringTag(tag_string));
-            buf.add(comp_variant);
+        for (self.entity_create_buffers.buffers) |buf| {
+            var comp_create_data = EntityCreateData.init(CompT, tag_string, self.allocator);
+            buf.add(comp_create_data);
         }
-        // self.component_buffers.currBuffer().add(comp_variant);
-        // self.comps_to_create.add(comp_var);
-        // for (self.create_data) |data| {
-        //     data.component_datas.add(comp_var);
-        // }
-        // self.params.putNoClobber(tag_string, comp_var);
     }
+
+    // pub fn addEntitiesDestroyedNotification(self: *EntityManager, entities: []Entity, tag: Tag) void {}
 
     // pub fn registerCreateCallback(self: *EntityManager, comptime CompT: type, callback: EntityCreateCallback) void {
     //     var component_indices = self.allocator.alloc(u16, callback.component_tags.len);
@@ -94,9 +125,9 @@ const EntityManager = struct {
     //             component_variants[component_count] = variant;
     //             component_count += 1;
     //         }
-    //     }
+    //     }asdas
     //     assert(component_count == callback.component_tags.len);
-
+    // sadfdadasdas
     //     for (self.entity_create_callbacks) |cb, index| {
     //         if (callback.pass < cb.pass) {
     //             var cb_new = callback;
@@ -114,66 +145,90 @@ const EntityManager = struct {
     // }
 
     pub fn commitPending(self: *EntityManager) void {
-        var params = VariantMap.init(self.allocator);
-        params.putNoClobber("allocator", self.allocator);
-        for (self.component_buffers.currSlice()) |comp_variant| {
-            params.putNoClobber(comp_variant.tag, comp_variant);
+        while (self.entity_destroy_buffers.currHasData() || self.entity_create_buffers.currHasData()) {
+            while (self.entities_to_destroy.count() > 0) {
+                // while (self.entity_destroy_buffers.currHasData()) {
+                for (self.comp_datas) |comp| {
+                    comp.destroyed_entities.resize(0);
+                    for (self.entities_to_destroy) |ent| {
+                        if (comp.tracked_entities[ent]) {
+                            comp.destroyed_entities.append(ent);
+                        }
+                    }
+                }
+                self.entities_to_destroy.resize(0);
+
+                var params = VariantMap.init(self.allocator);
+                params.putNoClobber("allocator", Variant.create_ptr(self.allocator, 0));
+                for (self.comp_datas) |comp| {
+                    params.putNoClobber(comp.tag, Variant.create_slice(comp.destroyed_entities.toSlice(), comp.tag));
+                }
+                self.system_manager.runSystemFunc("destroyEntities", params);
+            }
+
+            while (self.entity_create_buffers.currHasData()) {
+                var create_datas = self.entity_create_buffers.currSlice();
+                self.entity_create_buffers.swap();
+
+                var params = VariantMap.init(self.allocator);
+                params.putNoClobber("allocator", self.allocator);
+                for (self.entity_create_buffers.currSlice()) |comp_variant| {
+                    params.putNoClobber(comp_create_data.components.tag, comp_create_data);
+                }
+                self.system_manager.runSystemFunc("createEntities", params);
+            }
         }
-
-        self.system_manager.runSystemFunc("createEntities", params);
-        // for (self.entity_create_callbacks) |callback| {
-        //     var found = false;
-        //     for (callback.component_indices) |component_index, index2| {
-        //         var variant = self.comps_to_create[component_index];
-        //         assert(variant.tag == callback.component_variants[index2].tag);
-        //         callback.component_variants[index2] = variant;
-        //         if (variant.count > 0) {
-        //             found = true;
-        //             break;
-        //         }
-        //     }
-
-        //     if (found) {
-        //         callback.func(callback.user_data, params, callback.component_variants);
-        //     }
-        // }
     }
 
-    fn createEntities(hierarchy: EntityCreateHierarchy, comp_datas: []EntityComponentDataList, out_ents: []Entity) void {
-        for (out_ents) |*ent| {
-            ent.* = idlol;
-            idlol += 1;
-        }
+    // fn createEntities(hierarchy: EntityCreateHierarchy, comp_datas: []EntityComponentDataList, out_ents: []Entity) void {
+    //     for (out_ents) |*ent| {
+    //         ent.* = idlol;
+    //         idlol += 1;
+    //     }
 
-        var pass_max = 0;
-        for (comp_datas) |data| {
-            var entityCreate = self.funcs.get(data.hash);
-            if (entityCreate.pass > pass_max) {
-                pass_max = entityCreate.pass;
+    //     var pass_max = 0;
+    //     for (comp_datas) |data| {
+    //         var entityCreate = self.funcs.get(data.hash);
+    //         if (entityCreate.pass > pass_max) {
+    //             pass_max = entityCreate.pass;
+    //         }
+    //     }
+
+    //     // self.id_store.generate(out_ents);
+    //     for (hierarchy.depth_offsets) |depth_offset, depth| {
+    //         var pass = 0;
+    //         while (pass <= pass_max) {
+    //             for (comp_datas) |data| {
+    //                 // TODO: Sort?
+    //                 var entityCreate = self.funcs.get(data.id);
+    //                 if (entityCreate.pass != pass) {
+    //                     continue;
+    //                 }
+
+    //                 var ents: []Entity = self.allocator.alloc(Entity, data.tmp_ids);
+    //                 for (ents) |*ent| {
+    //                     ent.* = out_ents[ent.*];
+    //                 }
+    //                 entityCreate(sys, params, ents, data_list);
+    //                 self.allocator.free(ents);
+    //             }
+    //             pass += 1;
+    //         }
+    //     }
+    // }
+
+    fn createEntities(self:*EntityManager, defs:[]EntityDef)void{
+                var buf = self.entity_create_buffers.front();
+        for (defs)|def|{
+            for (def.components)|comp|{
+                var comp_data = buf.comp_datas.get(comp.tag);
+                comp_data.component_datas
             }
         }
+    }
 
-        // self.id_store.generate(out_ents);
-        for (hierarchy.depth_offsets) |depth_offset, depth| {
-            var pass = 0;
-            while (pass <= pass_max) {
-                for (comp_datas) |data| {
-                    // TODO: Sort?
-                    var entityCreate = self.funcs.get(data.id);
-                    if (entityCreate.pass != pass) {
-                        continue;
-                    }
-
-                    var ents: []Entity = self.allocator.alloc(Entity, data.tmp_ids);
-                    for (ents) |*ent| {
-                        ent.* = out_ents[ent.*];
-                    }
-                    entityCreate(sys, params, ents, data_list);
-                    self.allocator.free(ents);
-                }
-                pass += 1;
-            }
-        }
+    fn destroyEntities(self: *EntityManager, entities: []Entity) void {
+        self.entities_to_destroy.add(entities);
     }
 };
 
